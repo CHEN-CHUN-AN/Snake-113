@@ -1,142 +1,112 @@
 const GRID_SIZE = 30;
-const board = document.getElementById('gameBoard');
-let snake, direction, nextDirection, food, score, speed, gameInterval, isRunning;
+let snake = [{ x: 1, y: 0 }, { x: 0, y: 0 }, { x: -1, y: 0 }];
+let direction = { x: 1, y: 0 };
+let nextDirection = { x: 1, y: 0 };
+let food = null;
+let score = 0;
+let speed = 200;
+let gameInterval = null;
+let isRunning = false;
+let speedBoost = false; // Flag for speed boost
+let speedBoostTimeout = null; // Timeout to reset speed boost
 
-// ------------------------------
-// Utility Functions
-// ------------------------------
-
-// 隨機生成食物位置
-function randomFood() {
-  return {
-    x: Math.floor(Math.random() * GRID_SIZE),
-    y: Math.floor(Math.random() * GRID_SIZE),
-  };
-}
-
-// 處理邊緣傳送
-function wrapPosition({ x, y }) {
-  if (x < 0) x = GRID_SIZE - 1;
-  if (x >= GRID_SIZE) x = 0;
-  if (y < 0) y = GRID_SIZE - 1;
-  if (y >= GRID_SIZE) y = 0;
-  return { x, y };
-}
-
-// 檢查是否碰到自己
-function isCollision({ x, y }) {
-  return snake.some(seg => seg.x === x && seg.y === y);
-}
-
-// 計算新蛇頭位置
-function moveSnake() {
-  direction = { ...nextDirection };
-  const head = snake[0];
-  return wrapPosition({ x: head.x + direction.x, y: head.y + direction.y });
-}
-
-// ------------------------------
-// Game Mechanics
-// ------------------------------
-
-// 初始化棋盤
+// Initialize the game board
 function initBoard() {
-  board.innerHTML = '';
+  const gameBoard = document.getElementById('gameBoard');
+  gameBoard.innerHTML = '';
   for (let y = 0; y < GRID_SIZE; y++) {
     for (let x = 0; x < GRID_SIZE; x++) {
       const cell = document.createElement('div');
       cell.classList.add('cell');
       cell.dataset.x = x;
       cell.dataset.y = y;
-      board.appendChild(cell);
+      gameBoard.appendChild(cell);
     }
   }
 }
 
-// 處理吃食物邏輯，回傳是否吃到
-function handleFood(head) {
-  if (head.x === food.x && head.y === food.y) {
+// Clear the board
+function clearBoard() {
+  document.querySelectorAll('.snake').forEach(cell => cell.classList.remove('snake'));
+  document.querySelectorAll('.food').forEach(cell => cell.classList.remove('food'));
+}
+
+// Draw the snake
+function drawSnake() {
+  snake.forEach(segment => {
+    const cell = document.querySelector(`.cell[data-x="${segment.x}"][data-y="${segment.y}"]`);
+    if (cell) cell.classList.add('snake');
+  });
+}
+
+// Draw the food
+function drawFood() {
+  if (food) {
+    const cell = document.querySelector(`.cell[data-x="${food.x}"][data-y="${food.y}"]`);
+    if (cell) cell.classList.add('food');
+  }
+}
+
+// Generate random food
+function randomFood() {
+  let newFood;
+  do {
+    newFood = { x: Math.floor(Math.random() * GRID_SIZE), y: Math.floor(Math.random() * GRID_SIZE) };
+  } while (snake.some(segment => segment.x === newFood.x && segment.y === newFood.y));
+  return newFood;
+}
+
+// Update the game state
+function update() {
+  const head = { x: snake[0].x + direction.x, y: snake[0].y + direction.y };
+
+  // Boundary collision detection
+  if (head.x < 0 || head.x >= GRID_SIZE || head.y < 0 || head.y >= GRID_SIZE) {
+    alert('Game Over! You hit the wall.');
+    clearInterval(gameInterval);
+    isRunning = false;
+    return;
+  }
+
+  // Self-collision detection
+  if (snake.some(segment => segment.x === head.x && segment.y === head.y)) {
+    alert('Game Over!');
+    clearInterval(gameInterval);
+    isRunning = false;
+    return;
+  }
+
+  snake.unshift(head);
+
+  // Check if food is eaten
+  if (food && head.x === food.x && head.y === food.y) {
     score++;
     document.getElementById('score').textContent = `Score: ${score}`;
     food = randomFood();
-    speed = Math.max(10, speed - 2);
+    speed = Math.max(50, speed - 10); // Increase speed
     clearInterval(gameInterval);
     gameInterval = setInterval(gameLoop, speed);
-    return true;
-  }
-  return false;
-}
-
-// ------------------------------
-// Update & Draw
-// ------------------------------
-
-// update
-function update() {
-  const newHead = moveSnake();
-  if (isCollision(newHead)) {
-    clearInterval(gameInterval);
-    isRunning = false;
-    alert('Game Over');
-    return;
-  }
-  snake.unshift(newHead);
-  if (!handleFood(newHead)) snake.pop();
-}
-
-// 依座標取得格子
-function getCell(x, y) {
-  return document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
-}
-
-// 清空畫面上的蛇與食物
-function clearBoard() {
-  document.querySelectorAll('.cell').forEach(c => c.classList.remove('snake', 'food'));
-}
-
-// 繪製食物
-function drawFood() {
-  const cell = getCell(food.x, food.y);
-  if (cell) {
-    cell.classList.add('food');
+  } else {
+    snake.pop();
   }
 }
 
-// 繪製蛇身
-function drawSnake() {
-  for (const segment of snake) {
-    const cell = getCell(segment.x, segment.y);
-    if (cell) {
-      cell.classList.add('snake');
-    }
-  }
-}
-
-// draw
-function draw() {
-  clearBoard();
-  drawFood();
-  drawSnake();
-}
-
-// ------------------------------
-// Control Loop
-// ------------------------------
-
-// 遊戲主迴圈
+// Main game loop
 function gameLoop() {
   if (!isRunning) return;
+  clearBoard();
   update();
-  draw();
+  drawSnake();
+  drawFood();
 }
 
-// 開始遊戲
+// Start the game
 function startGame() {
   clearInterval(gameInterval);
   initBoard();
-  snake = [{ x: 2, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 0 }];
+  snake = [{ x: 1, y: 0 }, { x: 0, y: 0 }, { x: -1, y: 0 }];
   direction = { x: 1, y: 0 };
-  nextDirection = { ...direction };
+  nextDirection = { x: 1, y: 0 };
   food = randomFood();
   score = 0;
   speed = 200;
@@ -145,37 +115,52 @@ function startGame() {
   gameInterval = setInterval(gameLoop, speed);
 }
 
-// 暫停 / 繼續
+// Pause or resume the game
 function togglePause() {
-  if (!isRunning) return;
-  if (gameInterval) {
+  if (isRunning) {
     clearInterval(gameInterval);
-    gameInterval = null;
+    isRunning = false;
   } else {
     gameInterval = setInterval(gameLoop, speed);
+    isRunning = true;
   }
 }
 
-// 鍵盤控制
-function handleKey(e) {
-  const dirs = {
-    ArrowUp:    { x: 0, y: -1 },
-    ArrowDown:  { x: 0, y: 1 },
-    ArrowLeft:  { x: -1, y: 0 },
-    ArrowRight: { x: 1, y: 0 },
+// Handle keydown events
+window.addEventListener('keydown', e => {
+  if (!isRunning) return;
+  const keyMap = {
+    ArrowUp: { x: 0, y: -1 },
+    ArrowDown: { x: 0, y: 1 },
+    ArrowLeft: { x: -1, y: 0 },
+    ArrowRight: { x: 1, y: 0 }
   };
-  const newDir = dirs[e.code];
-  if (newDir && (newDir.x + direction.x !== 0 || newDir.y + direction.y !== 0)) {
-    nextDirection = newDir;
+  const newDirection = keyMap[e.key];
+  if (newDirection && (newDirection.x + direction.x !== 0 || newDirection.y + direction.y !== 0)) {
+    nextDirection = newDirection;
+
+    // Enable speed boost
+    if (!speedBoost) {
+      speedBoost = true;
+      clearInterval(gameInterval);
+      gameInterval = setInterval(gameLoop, speed / 2); // Speed up
+    }
+
+    // Reset speed boost timer
+    clearTimeout(speedBoostTimeout);
+    speedBoostTimeout = setTimeout(() => {
+      speedBoost = false;
+      clearInterval(gameInterval);
+      gameInterval = setInterval(gameLoop, speed); // Restore normal speed
+    }, 500); // 0.5 seconds to reset speed
   }
-}
+});
 
-// ------------------------------
-// UI Binding & Init
-// ------------------------------
+// Update direction periodically
+setInterval(() => {
+  direction = nextDirection;
+}, speed);
 
+// Bind button events
 document.getElementById('startBtn').addEventListener('click', startGame);
 document.getElementById('pauseBtn').addEventListener('click', togglePause);
-window.addEventListener('keydown', handleKey);
-
-initBoard();
